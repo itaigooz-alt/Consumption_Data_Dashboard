@@ -41,12 +41,31 @@
 ```
 Consumption/
 ├── sql/                          # SQL queries and table definitions
+│   └── create_fact_consumption_daily_new_ver_temp.sql
 ├── python/                       # Python scripts for data updates
 ├── *_dashboard.py               # Streamlit dashboard (to be created)
 ├── requirements.txt             # Python dependencies (to be created)
 ├── README.md                    # This file
-└── RACE_PROJECT_LEARNINGS.md    # Key learnings from Race project
+├── RACE_PROJECT_LEARNINGS.md    # Key learnings from Race project
+├── QUICK_REFERENCE.md           # Quick code snippets
+└── FACT_CONSUMPTION_DAILY_DOCUMENTATION.md  # Consumption table docs
 ```
+
+## Data Tables
+
+### fact_consumption_daily_new_ver_temp
+
+**Purpose**: Documents credits inflow and outflow by source
+
+**Granularity**: `date`, `distinct_id`, `source` (mp_event_name)
+
+**Key Features**:
+- Tracks both inflow (rewards) and outflow (spending)
+- Source-level breakdown (each event type is a separate row)
+- Enriched with player dimensions (chapter, payment flags, country, version)
+- Daily aggregation with 7-day rolling window
+
+**Documentation**: See `FACT_CONSUMPTION_DAILY_DOCUMENTATION.md`
 
 ---
 
