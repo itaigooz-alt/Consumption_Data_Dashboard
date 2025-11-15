@@ -6,9 +6,11 @@
 **Update Frequency**: Daily (processes last 7 days)  
 **Partitioning**: By `date`  
 **Source Tables**: 
-- `vmp_master_event_normalized` (raw events)
+- `vmp_master_event_normalized` (raw events) - See `main data documentation.pdf` for schema
 - `agg_player_daily` (player daily aggregations)
 - `dim_player` (player dimensions)
+
+**Reference Documentation**: `main data documentation.pdf` - Complete event schema and field definitions
 
 ---
 

@@ -73,6 +73,11 @@ Consumption/
 
 See `RACE_PROJECT_LEARNINGS.md` for comprehensive patterns, best practices, and solutions from the Race project.
 
+## Data Documentation
+
+- **main data documentation.pdf**: Complete data documentation for event schema, fields, and business logic
+- **FACT_CONSUMPTION_DAILY_DOCUMENTATION.md**: Documentation specific to the consumption table
+
 ### Key Patterns to Apply
 
 - ✅ Multi-method BigQuery authentication
