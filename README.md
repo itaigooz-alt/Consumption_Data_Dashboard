@@ -82,6 +82,39 @@ See `RACE_PROJECT_LEARNINGS.md` for comprehensive patterns, best practices, and 
 
 - ✅ Multi-method BigQuery authentication
 - ✅ Optimized SQL with combined CTEs
+- ✅ Streamlit dashboard with filters and dimension selectors
+- ✅ Google OAuth authentication for secure access
+
+## Dashboard
+
+The Consumption Dashboard (`consumption_dashboard.py`) provides interactive visualization of consumption data:
+
+### Features
+
+- **Daily Consumption View**: Combination chart showing:
+  - Line: Consumption % (Total Outflow / Total Inflow)
+  - Stacked Bars: Total Outflow (negative), Total Free Inflow, Total Paid Inflow
+- **Filters**: Date, First Chapter, Inflow/Outflow, US Player, Last Balance, Last Version, Paid Flags, Source
+- **Dimension Selectors**: Split views by First Chapter, US Player, Last Balance, Last Version, Paid Flags
+- **Apply Button**: Filters only apply when "Apply Filters" is clicked
+
+### Running the Dashboard
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the dashboard
+streamlit run consumption_dashboard.py
+```
+
+### Deployment
+
+For Streamlit Cloud deployment, configure secrets in the Streamlit Cloud dashboard:
+- `GOOGLE_APPLICATION_CREDENTIALS_JSON`: Service account JSON (TOML format)
+- `GOOGLE_OAUTH_CLIENT_ID`: OAuth client ID
+- `GOOGLE_OAUTH_CLIENT_SECRET`: OAuth client secret
+- `STREAMLIT_REDIRECT_URI`: OAuth redirect URI
 - ✅ Streamlit dashboard with filters and dimensions
 - ✅ Comprehensive documentation
 - ✅ Incremental update patterns
