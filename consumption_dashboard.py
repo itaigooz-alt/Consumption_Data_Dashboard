@@ -683,12 +683,12 @@ def calculate_daily_aggregates(df, dimension=None):
     chart_df = chart_df.sort_values('date')
     return chart_df
 
-def create_consumption_trend_chart(df, dimension=None):
+def create_consumption_trend_chart(df, dimension=None, date_range=None):
     """Create daily consumption trend line chart only"""
     if len(df) == 0:
         return None
     
-    chart_df = calculate_daily_aggregates(df, dimension)
+    chart_df = calculate_daily_aggregates(df, dimension, date_range)
     
     if len(chart_df) == 0:
         return None
@@ -751,12 +751,12 @@ def create_consumption_trend_chart(df, dimension=None):
     
     return fig
 
-def create_credits_components_chart(df, dimension=None):
+def create_credits_components_chart(df, dimension=None, date_range=None):
     """Create bar chart showing credits components on single axis (outflow below zero, inflow above zero)"""
     if len(df) == 0:
         return None
     
-    chart_df = calculate_daily_aggregates(df, dimension)
+    chart_df = calculate_daily_aggregates(df, dimension, date_range)
     
     if len(chart_df) == 0:
         return None
@@ -853,7 +853,7 @@ def create_credits_components_chart(df, dimension=None):
     
     return fig
 
-def create_free_vs_paid_inflow_chart(df, dimension=None):
+def create_free_vs_paid_inflow_chart(df, dimension=None, date_range=None):
     """Create stacked bar chart showing Free vs Paid Inflow share as percentages"""
     if len(df) == 0:
         return None
@@ -912,6 +912,50 @@ def create_free_vs_paid_inflow_chart(df, dimension=None):
         daily_data.append(row)
     
     chart_df = pd.DataFrame(daily_data)
+    
+    # Fill in missing dates in the selected range
+    if date_range:
+        date_min, date_max = date_range
+        if isinstance(date_min, tuple):
+            date_min = date_min[0]
+        if isinstance(date_max, tuple):
+            date_max = date_max[0]
+        if isinstance(date_min, pd.Timestamp):
+            date_min = date_min.date()
+        if isinstance(date_max, pd.Timestamp):
+            date_max = date_max.date()
+        
+        all_dates = pd.date_range(start=date_min, end=date_max, freq='D').date.tolist()
+        existing_dates = set(chart_df['date'].tolist()) if len(chart_df) > 0 else set()
+        
+        if dimension:
+            unique_dim_values = chart_df[dimension].dropna().unique() if len(chart_df) > 0 else []
+            for date_val in all_dates:
+                for dim_val in unique_dim_values:
+                    if date_val not in existing_dates or (date_val, dim_val) not in [(d, chart_df.loc[chart_df['date'] == date_val, dimension].iloc[0]) if len(chart_df[chart_df['date'] == date_val]) > 0 else None for d in existing_dates]:
+                        row = {
+                            'date': date_val,
+                            'Free Inflow': 0,
+                            'Paid Inflow': 0,
+                            'Free Share %': 0,
+                            'Paid Share %': 0,
+                            dimension: dim_val
+                        }
+                        daily_data.append(row)
+        else:
+            for date_val in all_dates:
+                if date_val not in existing_dates:
+                    row = {
+                        'date': date_val,
+                        'Free Inflow': 0,
+                        'Paid Inflow': 0,
+                        'Free Share %': 0,
+                        'Paid Share %': 0
+                    }
+                    daily_data.append(row)
+        
+        chart_df = pd.DataFrame(daily_data)
+    
     chart_df = chart_df.sort_values('date')
     
     if dimension:
@@ -1000,7 +1044,7 @@ def create_free_vs_paid_inflow_chart(df, dimension=None):
     
     return fig
 
-def create_free_share_by_source_chart(df, dimension=None):
+def create_free_share_by_source_chart(df, dimension=None, date_range=None):
     """Create stacked bar chart showing Free Inflow share by source"""
     if len(df) == 0:
         return None
@@ -1047,6 +1091,48 @@ def create_free_share_by_source_chart(df, dimension=None):
         daily_data.append(row)
     
     chart_df = pd.DataFrame(daily_data)
+    
+    # Fill in missing dates in the selected range (for each source)
+    if date_range:
+        date_min, date_max = date_range
+        if isinstance(date_min, tuple):
+            date_min = date_min[0]
+        if isinstance(date_max, tuple):
+            date_max = date_max[0]
+        if isinstance(date_min, pd.Timestamp):
+            date_min = date_min.date()
+        if isinstance(date_max, pd.Timestamp):
+            date_max = date_max.date()
+        
+        all_dates = pd.date_range(start=date_min, end=date_max, freq='D').date.tolist()
+        sources = sorted(chart_df['source'].unique()) if len(chart_df) > 0 else []
+        
+        if dimension:
+            unique_dim_values = chart_df[dimension].dropna().unique() if len(chart_df) > 0 else []
+            for date_val in all_dates:
+                for source_val in sources:
+                    for dim_val in unique_dim_values:
+                        if len(chart_df[(chart_df['date'] == date_val) & (chart_df['source'] == source_val) & (chart_df[dimension] == dim_val)]) == 0:
+                            row = {
+                                'date': date_val,
+                                'source': source_val,
+                                'Free Inflow': 0,
+                                dimension: dim_val
+                            }
+                            daily_data.append(row)
+        else:
+            for date_val in all_dates:
+                for source_val in sources:
+                    if len(chart_df[(chart_df['date'] == date_val) & (chart_df['source'] == source_val)]) == 0:
+                        row = {
+                            'date': date_val,
+                            'source': source_val,
+                            'Free Inflow': 0
+                        }
+                        daily_data.append(row)
+        
+        chart_df = pd.DataFrame(daily_data)
+    
     chart_df = chart_df.sort_values('date')
     
     # Calculate shares per date
@@ -1136,7 +1222,7 @@ def create_free_share_by_source_chart(df, dimension=None):
     
     return fig
 
-def create_rtp_by_source_chart(df, dimension=None):
+def create_rtp_by_source_chart(df, dimension=None, date_range=None):
     """Create line chart showing RTP by source (Free Inflow / Outflow)"""
     if len(df) == 0:
         return None
@@ -1215,6 +1301,57 @@ def create_rtp_by_source_chart(df, dimension=None):
         daily_data.append(row)
     
     chart_df = pd.DataFrame(daily_data)
+    
+    # Fill in missing dates in the selected range (for each source)
+    if date_range:
+        date_min, date_max = date_range
+        if isinstance(date_min, tuple):
+            date_min = date_min[0]
+        if isinstance(date_max, tuple):
+            date_max = date_max[0]
+        if isinstance(date_min, pd.Timestamp):
+            date_min = date_min.date()
+        if isinstance(date_max, pd.Timestamp):
+            date_max = date_max.date()
+        
+        all_dates = pd.date_range(start=date_min, end=date_max, freq='D').date.tolist()
+        sources = sorted(chart_df['source'].unique()) if len(chart_df) > 0 else []
+        
+        # Get daily outflow for all dates (fill missing with 0)
+        daily_outflow_dict = dict(zip(daily_outflow['date'], daily_outflow['outflow']))
+        
+        if dimension:
+            unique_dim_values = chart_df[dimension].dropna().unique() if len(chart_df) > 0 else []
+            for date_val in all_dates:
+                total_outflow = daily_outflow_dict.get(date_val, 0)
+                for source_val in sources:
+                    for dim_val in unique_dim_values:
+                        if len(chart_df[(chart_df['date'] == date_val) & (chart_df['source'] == source_val) & (chart_df[dimension] == dim_val)]) == 0:
+                            row = {
+                                'date': date_val,
+                                'source': source_val,
+                                'Free Inflow': 0,
+                                'Total Outflow': total_outflow,
+                                'RTP': 0,
+                                dimension: dim_val
+                            }
+                            daily_data.append(row)
+        else:
+            for date_val in all_dates:
+                total_outflow = daily_outflow_dict.get(date_val, 0)
+                for source_val in sources:
+                    if len(chart_df[(chart_df['date'] == date_val) & (chart_df['source'] == source_val)]) == 0:
+                        row = {
+                            'date': date_val,
+                            'source': source_val,
+                            'Free Inflow': 0,
+                            'Total Outflow': total_outflow,
+                            'RTP': 0
+                        }
+                        daily_data.append(row)
+        
+        chart_df = pd.DataFrame(daily_data)
+    
     chart_df = chart_df.sort_values('date')
     
     if dimension:
@@ -1611,7 +1748,7 @@ def main():
     st.header("Daily Free vs Paid Inflow")
     st.markdown("**Stacked bars showing share of Free Inflow vs Paid Inflow**")
     
-    free_vs_paid_chart = create_free_vs_paid_inflow_chart(filtered_df, selected_dimension)
+    free_vs_paid_chart = create_free_vs_paid_inflow_chart(filtered_df, selected_dimension, date_range)
     if free_vs_paid_chart:
         st.plotly_chart(free_vs_paid_chart, use_container_width=True)
     else:
@@ -1621,7 +1758,7 @@ def main():
     st.header("Daily Free Share by Source")
     st.markdown("**Stacked bars showing share of Free Inflow by source (hover for absolute values)**")
     
-    free_share_by_source_chart = create_free_share_by_source_chart(filtered_df, selected_dimension)
+    free_share_by_source_chart = create_free_share_by_source_chart(filtered_df, selected_dimension, date_range)
     if free_share_by_source_chart:
         st.plotly_chart(free_share_by_source_chart, use_container_width=True)
     else:
@@ -1632,7 +1769,7 @@ def main():
     st.markdown("**RTP = Total Free Inflow (by source) / Total Outflow** (line chart per source)")
     st.caption("Note: Outflow is calculated at player-day level to avoid double counting")
     
-    rtp_by_source_chart = create_rtp_by_source_chart(filtered_df, selected_dimension)
+    rtp_by_source_chart = create_rtp_by_source_chart(filtered_df, selected_dimension, date_range)
     if rtp_by_source_chart:
         st.plotly_chart(rtp_by_source_chart, use_container_width=True)
     else:
