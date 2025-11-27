@@ -117,3 +117,5 @@ LEFT JOIN player_dimensions pd
     AND c.distinct_id = pd.distinct_id
 WHERE c.date >= CURRENT_DATE - 7;
 
+
+
