@@ -1728,7 +1728,7 @@ def main():
         unique_dates = sorted(filtered_df['date'].unique()) if len(filtered_df) > 0 else []
         st.caption(f"📅 Date range: {date_min} to {date_max} | 📊 Days with data: {len(unique_dates)} ({', '.join(str(d) for d in unique_dates[:5])}{'...' if len(unique_dates) > 5 else ''})")
     
-    consumption_trend_chart = create_consumption_trend_chart(filtered_df, selected_dimension)
+    consumption_trend_chart = create_consumption_trend_chart(filtered_df, selected_dimension, date_range)
     if consumption_trend_chart:
         st.plotly_chart(consumption_trend_chart, use_container_width=True)
     else:
@@ -1738,7 +1738,7 @@ def main():
     st.header("Credits Components")
     st.markdown("**Bars show:** Total Outflow (negative), Total Free Inflow, Total Paid Inflow")
     
-    credits_components_chart = create_credits_components_chart(filtered_df, selected_dimension)
+    credits_components_chart = create_credits_components_chart(filtered_df, selected_dimension, date_range)
     if credits_components_chart:
         st.plotly_chart(credits_components_chart, use_container_width=True)
     else:
