@@ -110,11 +110,16 @@ streamlit run consumption_dashboard.py
 
 ### Deployment
 
-For Streamlit Cloud deployment, configure secrets in the Streamlit Cloud dashboard:
-- `GOOGLE_APPLICATION_CREDENTIALS_JSON`: Service account JSON (TOML format)
-- `GOOGLE_OAUTH_CLIENT_ID`: OAuth client ID
-- `GOOGLE_OAUTH_CLIENT_SECRET`: OAuth client secret
-- `STREAMLIT_REDIRECT_URI`: OAuth redirect URI
+The dashboard is ready for deployment to Streamlit Cloud. See **[STREAMLIT_DEPLOYMENT.md](STREAMLIT_DEPLOYMENT.md)** for complete deployment instructions.
+
+**Quick Setup:**
+1. Push code to GitHub: `https://github.com/itaigooz-alt/Consumption_Data_Dashboard`
+2. Deploy to Streamlit Cloud: https://share.streamlit.io
+3. Configure secrets in Streamlit Cloud (see STREAMLIT_DEPLOYMENT.md for details):
+   - `GOOGLE_APPLICATION_CREDENTIALS_JSON`: Service account JSON (TOML format)
+   - `GOOGLE_OAUTH_CLIENT_ID`: OAuth client ID
+   - `GOOGLE_OAUTH_CLIENT_SECRET`: OAuth client secret
+   - `STREAMLIT_REDIRECT_URI`: OAuth redirect URI (e.g., `https://consumption-dashboard.streamlit.app/`)
 
 ---
 

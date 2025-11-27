@@ -269,35 +269,110 @@ def authenticate_user():
                 if check_authorization(email):
                     st.session_state.authenticated = True
                     st.session_state.user_email = email
+                    st.session_state.user_name = user_info.get('name', '')
+                    # Clear the code from URL
                     st.query_params.clear()
                     st.rerun()
+                    return email
                 else:
-                    st.error(f"Access denied. Email {email} is not authorized.")
-                    return False
+                    st.error(f"❌ Access Denied: {email} is not authorized to access this dashboard.")
+                    st.info("This dashboard is restricted to Peerplay employees only.")
+                    return None
         except Exception as e:
-            st.error(f"Authentication error: {e}")
-            return False
-    else:
-        try:
-            auth_url = get_google_oauth_url()
-            if auth_url:
-                st.markdown("""
-                <script>
-                window.location.replace("""" + auth_url + """");
-                </script>
-                """, unsafe_allow_html=True)
-                return False
+            error_msg = str(e)
+            # Handle scope change errors specifically
+            if "Scope has changed" in error_msg or "scope" in error_msg.lower():
+                st.error("🔐 **Authentication Error: Scope Mismatch**")
+                st.warning("""
+                **What happened:**
+                The OAuth scopes have changed. You need to re-authorize the application.
+                
+                **Solution:**
+                1. Clear your browser cookies/cache for this site
+                2. Or use an incognito/private browsing window
+                3. Click the login button again to re-authorize
+                
+                **Note:** This is a one-time re-authorization. After this, you should be able to access the dashboard normally.
+                """)
+                # Clear session state to force re-authentication
+                if 'authenticated' in st.session_state:
+                    del st.session_state['authenticated']
+                if 'user_email' in st.session_state:
+                    del st.session_state['user_email']
             else:
-                st.warning("OAuth not configured. Proceeding without authentication.")
-                st.session_state.authenticated = True
-                return True
-        except Exception as e:
-            # If secrets are not configured, proceed without authentication
-            st.warning("OAuth not configured. Proceeding without authentication.")
-            st.session_state.authenticated = True
-            return True
+                st.error(f"Authentication error: {error_msg}")
+            return None
+    # Check for auth URL first - if it exists, redirect immediately without showing debug
+    try:
+        auth_url = get_google_oauth_url()
+        if auth_url:
+            # Show minimal content and redirect using JavaScript
+            st.markdown("### 🔐 Redirecting to Google Authentication...")
+            st.markdown("Please wait while we redirect you to sign in with your Google account.")
+            
+            # Use JavaScript to redirect - simplified approach
+            redirect_js = f"""
+            <script type="text/javascript">
+                (function() {{
+                    try {{
+                        window.location.href = "{auth_url}";
+                    }} catch(e) {{
+                        console.error("Redirect error:", e);
+                        // Fallback: create a link and click it
+                        var link = document.createElement('a');
+                        link.href = "{auth_url}";
+                        link.click();
+                    }}
+                }})();
+            </script>
+            """
+            
+            st.markdown(redirect_js, unsafe_allow_html=True)
+            
+            # Also provide a clickable link as fallback
+            st.markdown("---")
+            st.markdown("If you are not redirected automatically, click here:")
+            st.markdown(f"[**🔵 Sign in with Google**]({auth_url})")
+            
+            # Stop execution to prevent dashboard from loading
+            st.stop()
+    except Exception as e:
+        # If there's an error getting the auth URL, show it and continue to error page
+        st.error(f"Error setting up authentication: {str(e)}")
+        auth_url = None
     
-    return st.session_state.authenticated
+    # Only show login page and debug if OAuth is not configured
+    st.title("🔐 Authentication Required")
+    st.markdown("### Consumption Dashboard")
+    st.markdown("This dashboard is restricted to **Peerplay employees only**.")
+    
+    # Debug: Show what secrets are available (only if OAuth not configured)
+    if hasattr(st, 'secrets'):
+        try:
+            available_secrets = list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else []
+            with st.expander("🔍 Debug: Available Secrets", expanded=False):
+                st.write(f"Found {len(available_secrets)} secrets:")
+                for key in available_secrets:
+                    # Don't show sensitive values, just keys
+                    if 'SECRET' in key.upper() or 'KEY' in key.upper():
+                        st.write(f"- `{key}`: ✅ (hidden)")
+                    else:
+                        try:
+                            value = st.secrets.get(key)
+                            if isinstance(value, str) and len(value) > 50:
+                                st.write(f"- `{key}`: ✅ (value too long to display)")
+                            else:
+                                st.write(f"- `{key}`: `{value}`")
+                        except:
+                            st.write(f"- `{key}`: ✅ (exists)")
+        except Exception:
+            pass
+    
+    # If OAuth is not configured, proceed without authentication for local development
+    st.warning("⚠️ OAuth not configured. Proceeding without authentication.")
+    st.info("For production deployment, configure OAuth credentials in Streamlit Cloud secrets.")
+    st.session_state.authenticated = True
+    return True
 
 # ============================================================================
 # BIGQUERY CONNECTION
