@@ -570,7 +570,7 @@ def bucket_last_balance(value):
     ]
     return create_bucket_label(value, buckets)
 
-def calculate_daily_aggregates(df, dimension=None):
+def calculate_daily_aggregates(df, dimension=None, date_range=None):
     """Helper function to calculate daily aggregates"""
     if len(df) == 0:
         return pd.DataFrame()
@@ -643,20 +643,38 @@ def calculate_daily_aggregates(df, dimension=None):
     
     # Ensure we have all dates in the range, even if no data
     if len(chart_df) > 0:
-        min_date = chart_df['date'].min()
-        max_date = chart_df['date'].max()
+        # Use date_range if provided, otherwise use min/max from data
+        if date_range and isinstance(date_range, (tuple, list)) and len(date_range) == 2:
+            try:
+                min_date, max_date = date_range
+                # Ensure dates are proper date objects
+                if isinstance(min_date, pd.Timestamp):
+                    min_date = min_date.date()
+                if isinstance(max_date, pd.Timestamp):
+                    max_date = max_date.date()
+                # Handle None values
+                if min_date is None or max_date is None:
+                    raise ValueError("Date range contains None values")
+            except (ValueError, TypeError) as e:
+                # Fallback to data min/max if date_range is invalid
+                date_range = None
         
-        # Ensure dates are proper date objects, not tuples
-        if isinstance(min_date, tuple):
-            min_date = min_date[0]
-        if isinstance(max_date, tuple):
-            max_date = max_date[0]
-        
-        # Convert to pandas Timestamp if needed
-        if isinstance(min_date, pd.Timestamp):
-            min_date = min_date.date()
-        if isinstance(max_date, pd.Timestamp):
-            max_date = max_date.date()
+        # If date_range is not valid, use min/max from data
+        if not date_range or not isinstance(date_range, (tuple, list)) or len(date_range) != 2:
+            min_date = chart_df['date'].min()
+            max_date = chart_df['date'].max()
+            
+            # Ensure dates are proper date objects, not tuples
+            if isinstance(min_date, tuple):
+                min_date = min_date[0]
+            if isinstance(max_date, tuple):
+                max_date = max_date[0]
+            
+            # Convert to pandas Timestamp if needed
+            if isinstance(min_date, pd.Timestamp):
+                min_date = min_date.date()
+            if isinstance(max_date, pd.Timestamp):
+                max_date = max_date.date()
         
         # Create a complete date range
         all_dates = pd.date_range(start=min_date, end=max_date, freq='D').date.tolist()
@@ -674,9 +692,14 @@ def calculate_daily_aggregates(df, dimension=None):
                 }
                 if dimension:
                     # For missing dates, we need to add rows for each dimension value
-                    # But for now, let's just add one row and handle dimensions separately
-                    pass
-                daily_data.append(row)
+                    # Get all unique dimension values from existing data
+                    unique_dim_vals = chart_df[dimension].dropna().unique()
+                    for dim_val in unique_dim_vals:
+                        row_with_dim = row.copy()
+                        row_with_dim[dimension] = dim_val
+                        daily_data.append(row_with_dim)
+                else:
+                    daily_data.append(row)
         
         chart_df = pd.DataFrame(daily_data)
     
@@ -1718,6 +1741,47 @@ def main():
         st.warning("No data matches the selected filters.")
         return
     
+    # Get date_range from filters for chart functions
+    chart_date_range = None
+    try:
+        if filters.get('date_range'):
+            date_range_filter = filters['date_range']
+            # Validate that it's a tuple/list with 2 elements
+            if isinstance(date_range_filter, (tuple, list)) and len(date_range_filter) == 2:
+                min_date, max_date = date_range_filter
+                # Ensure dates are proper date objects
+                if isinstance(min_date, pd.Timestamp):
+                    min_date = min_date.date()
+                if isinstance(max_date, pd.Timestamp):
+                    max_date = max_date.date()
+                # Only set if both dates are valid
+                if min_date is not None and max_date is not None:
+                    chart_date_range = (min_date, max_date)
+    except (ValueError, TypeError, AttributeError):
+        # If date_range filter is invalid, fall through to use data range
+        pass
+    
+    # If no valid date_range from filters, use min/max from filtered data
+    if chart_date_range is None and len(filtered_df) > 0:
+        try:
+            min_date = filtered_df['date'].min()
+            max_date = filtered_df['date'].max()
+            # Ensure dates are proper date objects
+            if isinstance(min_date, pd.Timestamp):
+                min_date = min_date.date()
+            if isinstance(max_date, pd.Timestamp):
+                max_date = max_date.date()
+            # Handle tuple dates (from groupby)
+            if isinstance(min_date, tuple):
+                min_date = min_date[0]
+            if isinstance(max_date, tuple):
+                max_date = max_date[0]
+            if min_date is not None and max_date is not None:
+                chart_date_range = (min_date, max_date)
+        except (ValueError, TypeError, AttributeError):
+            # If we can't get dates from data, set to None
+            chart_date_range = None
+    
     # View 1: Daily Consumption (Trend Line Only)
     st.header("Daily Consumption")
     st.markdown("**Consumption = Total Outflow / Total Inflow** (line trend)")
@@ -1728,7 +1792,7 @@ def main():
         unique_dates = sorted(filtered_df['date'].unique()) if len(filtered_df) > 0 else []
         st.caption(f"📅 Date range: {date_min} to {date_max} | 📊 Days with data: {len(unique_dates)} ({', '.join(str(d) for d in unique_dates[:5])}{'...' if len(unique_dates) > 5 else ''})")
     
-    consumption_trend_chart = create_consumption_trend_chart(filtered_df, selected_dimension, date_range)
+    consumption_trend_chart = create_consumption_trend_chart(filtered_df, selected_dimension, chart_date_range)
     if consumption_trend_chart:
         st.plotly_chart(consumption_trend_chart, use_container_width=True)
     else:
@@ -1738,7 +1802,7 @@ def main():
     st.header("Credits Components")
     st.markdown("**Bars show:** Total Outflow (negative), Total Free Inflow, Total Paid Inflow")
     
-    credits_components_chart = create_credits_components_chart(filtered_df, selected_dimension, date_range)
+    credits_components_chart = create_credits_components_chart(filtered_df, selected_dimension, chart_date_range)
     if credits_components_chart:
         st.plotly_chart(credits_components_chart, use_container_width=True)
     else:
@@ -1748,7 +1812,7 @@ def main():
     st.header("Daily Free vs Paid Inflow")
     st.markdown("**Stacked bars showing share of Free Inflow vs Paid Inflow**")
     
-    free_vs_paid_chart = create_free_vs_paid_inflow_chart(filtered_df, selected_dimension, date_range)
+    free_vs_paid_chart = create_free_vs_paid_inflow_chart(filtered_df, selected_dimension, chart_date_range)
     if free_vs_paid_chart:
         st.plotly_chart(free_vs_paid_chart, use_container_width=True)
     else:
@@ -1758,7 +1822,7 @@ def main():
     st.header("Daily Free Share by Source")
     st.markdown("**Stacked bars showing share of Free Inflow by source (hover for absolute values)**")
     
-    free_share_by_source_chart = create_free_share_by_source_chart(filtered_df, selected_dimension, date_range)
+    free_share_by_source_chart = create_free_share_by_source_chart(filtered_df, selected_dimension, chart_date_range)
     if free_share_by_source_chart:
         st.plotly_chart(free_share_by_source_chart, use_container_width=True)
     else:
@@ -1769,7 +1833,7 @@ def main():
     st.markdown("**RTP = Total Free Inflow (by source) / Total Outflow** (line chart per source)")
     st.caption("Note: Outflow is calculated at player-day level to avoid double counting")
     
-    rtp_by_source_chart = create_rtp_by_source_chart(filtered_df, selected_dimension, date_range)
+    rtp_by_source_chart = create_rtp_by_source_chart(filtered_df, selected_dimension, chart_date_range)
     if rtp_by_source_chart:
         st.plotly_chart(rtp_by_source_chart, use_container_width=True)
     else:
