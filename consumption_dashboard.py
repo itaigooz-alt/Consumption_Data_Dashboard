@@ -467,12 +467,18 @@ def init_bigquery_client():
         return None
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes instead of 1 minute
-def load_data(_client, date_limit_days=30):
+def load_data(_client, date_limit_days=None):
     """Load data from BigQuery with optimized query"""
     try:
-        # Only load recent data by default (last 30 days)
+        # Load all available data (or last N days if date_limit_days is specified)
         # Use partition pruning and limit columns for faster query
         # The table is partitioned by date, so this should be fast
+        if date_limit_days:
+            date_filter = f"WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {date_limit_days} DAY)"
+        else:
+            # Load all data - no date filter
+            date_filter = ""
+        
         query = f"""
         SELECT 
             date,
@@ -489,9 +495,8 @@ def load_data(_client, date_limit_days=30):
             last_version_of_day,
             last_balance_of_day
         FROM `{FULL_TABLE}`
-        WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {date_limit_days} DAY)
+        {date_filter}
         ORDER BY date DESC, distinct_id, source
-        LIMIT 1000000
         """
         
         # Use job_config for faster queries with caching
@@ -1457,23 +1462,22 @@ def main():
         st.stop()
     
     # Load data with loading indicator and progress
-    with st.spinner("Loading data from BigQuery (this may take 10-30 seconds)..."):
-        # Load last 30 days by default for faster initial load
-        # User can expand date range using the filter
+    with st.spinner("Loading data from BigQuery (this may take 30-60 seconds for full dataset)..."):
+        # Load all available data
         try:
-            df = load_data(client, date_limit_days=30)
+            df = load_data(client, date_limit_days=None)  # Load all data
         except Exception as e:
             st.error(f"Error loading data: {e}")
             st.info("💡 Tip: The query might be taking too long. Try reducing the date range or check your BigQuery connection.")
             return
     
     if len(df) == 0:
-        st.warning("No data available for the last 30 days.")
-        st.info("💡 Tip: The dashboard loads the last 30 days by default for faster performance. Use the date filter to expand the range.")
+        st.warning("No data available.")
+        st.info("💡 Tip: Check your BigQuery connection and table permissions.")
         return
     
     # Show data info
-    st.caption(f"📊 Loaded {len(df):,} rows from last 30 days. Use date filter to expand range.")
+    st.caption(f"📊 Loaded {len(df):,} rows. Use date filter to refine the view.")
     
     # ============================================================================
     # FILTERS WITH APPLY BUTTON
@@ -1673,10 +1677,7 @@ def main():
                 # Calculate days needed from today
                 from datetime import date
                 today = date.today()
-                days_needed = max(
-                    (today - date_min).days + 1,
-                    30  # Minimum 30 days
-                )
+                days_needed = (today - date_min).days + 1
                 with st.spinner(f"Loading data for selected date range ({date_min} to {date_max})..."):
                     # Clear cache and reload
                     load_data.clear()
