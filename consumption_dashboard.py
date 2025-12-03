@@ -466,10 +466,12 @@ def init_bigquery_client():
         """)
         return None
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes instead of 1 minute
+@st.cache_data(ttl=300, show_spinner="Loading data from BigQuery...")  # Cache for 5 minutes
 def load_data(_client, date_limit_days=None):
     """Load data from BigQuery with optimized query"""
     try:
+        # Debug: Show which table we're querying
+        st.write(f"🔍 Querying table: `{FULL_TABLE}`")
         # Load all available data (or last N days if date_limit_days is specified)
         # The new table has sources as columns, not rows
         if date_limit_days:
@@ -1472,6 +1474,8 @@ def main():
     with st.spinner("Loading data from BigQuery (this may take 30-60 seconds for full dataset)..."):
         # Load all available data
         try:
+            # Clear cache to ensure we get fresh data from new table
+            load_data.clear()
             df = load_data(client, date_limit_days=None)  # Load all data
         except Exception as e:
             st.error(f"Error loading data: {e}")
