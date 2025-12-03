@@ -597,9 +597,18 @@ def load_data(_client, date_limit_days=None):
             if field in df.columns:
                 df[field] = df[field].astype(str)
         
+        # Debug info
+        if len(df) > 0:
+            st.success(f"✅ Successfully loaded {len(df):,} rows from `{FULL_TABLE}`")
+            # Show sample of column names to verify structure
+            sample_cols = [col for col in df.columns if 'inflow' in col.lower() or 'outflow' in col.lower()][:5]
+            if sample_cols:
+                st.write(f"📊 Sample columns: {', '.join(sample_cols)}...")
+        
         return df
     except Exception as e:
-        st.error(f"Error loading data: {e}")
+        st.error(f"❌ Error loading data from `{FULL_TABLE}`: {e}")
+        st.info("💡 Tip: Make sure the table exists and has data. Check BigQuery console.")
         return pd.DataFrame()
 
 # ============================================================================
