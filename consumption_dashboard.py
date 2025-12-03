@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Consumption Dashboard
-Connects to BigQuery fact_consumption_daily_new_ver_temp table and displays consumption analytics
+Connects to BigQuery fact_consumption_daily_dashboard table and displays consumption analytics
 """
 
 import streamlit as st
@@ -379,7 +379,7 @@ def authenticate_user():
 # ============================================================================
 
 PROJECT_ID = "yotam-395120"
-FULL_TABLE = "yotam-395120.peerplay.fact_consumption_daily_new_ver_temp"
+FULL_TABLE = "yotam-395120.peerplay.fact_consumption_daily_dashboard"
 
 @st.cache_resource
 def init_bigquery_client():
@@ -471,8 +471,7 @@ def load_data(_client, date_limit_days=None):
     """Load data from BigQuery with optimized query"""
     try:
         # Load all available data (or last N days if date_limit_days is specified)
-        # Use partition pruning and limit columns for faster query
-        # The table is partitioned by date, so this should be fast
+        # The new table has sources as columns, not rows
         if date_limit_days:
             date_filter = f"WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {date_limit_days} DAY)"
         else:
@@ -482,21 +481,63 @@ def load_data(_client, date_limit_days=None):
         query = f"""
         SELECT 
             date,
-            distinct_id,
-            source,
-            inflow_outflow,
-            sum_value,
-            cnt,
-            total_outflow_per_player_per_day,
-            first_chapter_of_day,
+            first_chapter_bucket,
+            is_us_player,
+            last_balance_bucket,
+            last_version_of_day,
             paid_today_flag,
             paid_ever_flag,
-            is_us_player,
-            last_version_of_day,
-            last_balance_of_day
+            players,
+            -- Inflow sources (all 18 sources)
+            rewards_race_inflow_sum_value,
+            rewards_race_inflow_cnt,
+            rewards_store_inflow_sum_value,
+            rewards_store_inflow_cnt,
+            rewards_rolling_offer_collect_inflow_sum_value,
+            rewards_rolling_offer_collect_inflow_cnt,
+            rewards_board_task_inflow_sum_value,
+            rewards_board_task_inflow_cnt,
+            rewards_harvest_collect_inflow_sum_value,
+            rewards_harvest_collect_inflow_cnt,
+            rewards_missions_total_inflow_sum_value,
+            rewards_missions_total_inflow_cnt,
+            rewards_recipes_inflow_sum_value,
+            rewards_recipes_inflow_cnt,
+            rewards_flowers_inflow_sum_value,
+            rewards_flowers_inflow_cnt,
+            rewards_rewarded_video_inflow_sum_value,
+            rewards_rewarded_video_inflow_cnt,
+            rewards_disco_inflow_sum_value,
+            rewards_disco_inflow_cnt,
+            rewards_timed_task_inflow_sum_value,
+            rewards_timed_task_inflow_cnt,
+            rewards_sell_board_item_inflow_sum_value,
+            rewards_sell_board_item_inflow_cnt,
+            rewards_mass_compensation_inflow_sum_value,
+            rewards_mass_compensation_inflow_cnt,
+            rewards_missions_task_inflow_sum_value,
+            rewards_missions_task_inflow_cnt,
+            rewards_album_set_completion_inflow_sum_value,
+            rewards_album_set_completion_inflow_cnt,
+            rewards_self_collectable_inflow_sum_value,
+            rewards_self_collectable_inflow_cnt,
+            rewards_eoc_inflow_sum_value,
+            rewards_eoc_inflow_cnt,
+            rewards_frenzy_non_jackpot_inflow_sum_value,
+            rewards_frenzy_non_jackpot_inflow_cnt,
+            -- Outflow sources (2 sources)
+            generation_outflow_sum_value,
+            generation_outflow_cnt,
+            click_bubble_purchase_outflow_sum_value,
+            click_bubble_purchase_outflow_cnt,
+            -- Calculated totals
+            total_inflow,
+            total_free_inflow,
+            total_paid_inflow,
+            total_outflow
         FROM `{FULL_TABLE}`
         {date_filter}
-        ORDER BY date DESC, distinct_id, source
+        ORDER BY date DESC
         """
         
         # Use job_config for faster queries with caching
@@ -513,9 +554,31 @@ def load_data(_client, date_limit_days=None):
         if 'date' in df.columns:
             df['date'] = pd.to_datetime(df['date']).dt.date
         
-        # Handle numeric fields
-        numeric_fields = ['sum_value', 'cnt', 'total_outflow_per_player_per_day', 
-                         'first_chapter_of_day', 'last_balance_of_day', 'last_version_of_day']
+        # Handle numeric fields - all source columns and totals
+        numeric_fields = [
+            'players', 'last_version_of_day',
+            'rewards_race_inflow_sum_value', 'rewards_race_inflow_cnt',
+            'rewards_store_inflow_sum_value', 'rewards_store_inflow_cnt',
+            'rewards_rolling_offer_collect_inflow_sum_value', 'rewards_rolling_offer_collect_inflow_cnt',
+            'rewards_board_task_inflow_sum_value', 'rewards_board_task_inflow_cnt',
+            'rewards_harvest_collect_inflow_sum_value', 'rewards_harvest_collect_inflow_cnt',
+            'rewards_missions_total_inflow_sum_value', 'rewards_missions_total_inflow_cnt',
+            'rewards_recipes_inflow_sum_value', 'rewards_recipes_inflow_cnt',
+            'rewards_flowers_inflow_sum_value', 'rewards_flowers_inflow_cnt',
+            'rewards_rewarded_video_inflow_sum_value', 'rewards_rewarded_video_inflow_cnt',
+            'rewards_disco_inflow_sum_value', 'rewards_disco_inflow_cnt',
+            'rewards_timed_task_inflow_sum_value', 'rewards_timed_task_inflow_cnt',
+            'rewards_sell_board_item_inflow_sum_value', 'rewards_sell_board_item_inflow_cnt',
+            'rewards_mass_compensation_inflow_sum_value', 'rewards_mass_compensation_inflow_cnt',
+            'rewards_missions_task_inflow_sum_value', 'rewards_missions_task_inflow_cnt',
+            'rewards_album_set_completion_inflow_sum_value', 'rewards_album_set_completion_inflow_cnt',
+            'rewards_self_collectable_inflow_sum_value', 'rewards_self_collectable_inflow_cnt',
+            'rewards_eoc_inflow_sum_value', 'rewards_eoc_inflow_cnt',
+            'rewards_frenzy_non_jackpot_inflow_sum_value', 'rewards_frenzy_non_jackpot_inflow_cnt',
+            'generation_outflow_sum_value', 'generation_outflow_cnt',
+            'click_bubble_purchase_outflow_sum_value', 'click_bubble_purchase_outflow_cnt',
+            'total_inflow', 'total_free_inflow', 'total_paid_inflow', 'total_outflow'
+        ]
         for field in numeric_fields:
             if field in df.columns:
                 df[field] = pd.to_numeric(df[field], errors='coerce').fillna(0)
@@ -526,11 +589,11 @@ def load_data(_client, date_limit_days=None):
             if field in df.columns:
                 df[field] = df[field].fillna(0).astype(int)
         
-        # Handle string fields
-        if 'source' in df.columns:
-            df['source'] = df['source'].astype(str)
-        if 'inflow_outflow' in df.columns:
-            df['inflow_outflow'] = df['inflow_outflow'].astype(str)
+        # Handle string fields (buckets)
+        string_fields = ['first_chapter_bucket', 'last_balance_bucket']
+        for field in string_fields:
+            if field in df.columns:
+                df[field] = df[field].astype(str)
         
         return df
     except Exception as e:
@@ -581,6 +644,7 @@ def calculate_daily_aggregates(df, dimension=None, date_range=None):
         return pd.DataFrame()
     
     # Aggregate data by date (and dimension if provided)
+    # The new table already has calculated totals, so we just need to sum them
     if dimension:
         group_cols = ['date', dimension]
     else:
@@ -603,31 +667,11 @@ def calculate_daily_aggregates(df, dimension=None, date_range=None):
         if isinstance(date_val, pd.Timestamp):
             date_val = date_val.date()
         
-        # Calculate total inflow and outflow
-        # Note: Since we have multiple rows per player per day (one per source),
-        # we need to aggregate by distinct_id first, then sum across all players
-        # For inflow: sum all positive values
-        # For outflow: sum all negative values (they're already negative in the data)
-        
-        inflow_df = group_df[group_df['inflow_outflow'] == 'inflow']
-        outflow_df = group_df[group_df['inflow_outflow'] == 'outflow']
-        
-        # Sum all inflow values (they're positive)
-        total_inflow = inflow_df['sum_value'].sum()
-        
-        # Sum all outflow values (they're already negative, so we keep them negative)
-        total_outflow_negative = outflow_df['sum_value'].sum()
-        total_outflow_positive = abs(total_outflow_negative)  # For display as positive bar
-        
-        # Calculate free inflow (source not in rewards_store, rewards_rolling_offer_collect)
-        free_inflow = inflow_df[
-            ~inflow_df['source'].isin(['rewards_store', 'rewards_rolling_offer_collect'])
-        ]['sum_value'].sum()
-        
-        # Calculate paid inflow (source in rewards_store, rewards_rolling_offer_collect)
-        paid_inflow = inflow_df[
-            inflow_df['source'].isin(['rewards_store', 'rewards_rolling_offer_collect'])
-        ]['sum_value'].sum()
+        # Use calculated totals from the table (already aggregated)
+        total_inflow = group_df['total_inflow'].sum()
+        total_free_inflow = group_df['total_free_inflow'].sum()
+        total_paid_inflow = group_df['total_paid_inflow'].sum()
+        total_outflow_positive = abs(group_df['total_outflow'].sum())  # Make positive, then negative for display
         
         # Calculate consumption ratio (outflow / inflow)
         consumption = (total_outflow_positive / total_inflow * 100) if total_inflow > 0 else 0
@@ -635,8 +679,8 @@ def calculate_daily_aggregates(df, dimension=None, date_range=None):
         row = {
             'date': date_val,
             'total_outflow': -total_outflow_positive,  # Keep negative for display (below zero)
-            'total_free_inflow': free_inflow,
-            'total_paid_inflow': paid_inflow,
+            'total_free_inflow': total_free_inflow,
+            'total_paid_inflow': total_paid_inflow,
             'consumption': consumption
         }
         if dimension:
@@ -886,19 +930,15 @@ def create_free_vs_paid_inflow_chart(df, dimension=None, date_range=None):
     if len(df) == 0:
         return None
     
-    # Filter for inflow only
-    inflow_df = df[df['inflow_outflow'] == 'inflow'].copy()
-    if len(inflow_df) == 0:
-        return None
-    
     # Aggregate by date (and dimension if provided)
+    # The new table already has calculated totals
     if dimension:
         group_cols = ['date', dimension]
     else:
         group_cols = ['date']
     
     daily_data = []
-    for date_group, group_df in inflow_df.groupby(group_cols):
+    for date_group, group_df in df.groupby(group_cols):
         if dimension:
             date_val, dim_val = date_group
         else:
@@ -911,17 +951,10 @@ def create_free_vs_paid_inflow_chart(df, dimension=None, date_range=None):
         if isinstance(date_val, pd.Timestamp):
             date_val = date_val.date()
         
-        # Calculate free inflow (source not in rewards_store, rewards_rolling_offer_collect)
-        free_inflow = group_df[
-            ~group_df['source'].isin(['rewards_store', 'rewards_rolling_offer_collect'])
-        ]['sum_value'].sum()
-        
-        # Calculate paid inflow (source in rewards_store, rewards_rolling_offer_collect)
-        paid_inflow = group_df[
-            group_df['source'].isin(['rewards_store', 'rewards_rolling_offer_collect'])
-        ]['sum_value'].sum()
-        
-        total_inflow = free_inflow + paid_inflow
+        # Use calculated totals from the table
+        free_inflow = group_df['total_free_inflow'].sum()
+        paid_inflow = group_df['total_paid_inflow'].sum()
+        total_inflow = group_df['total_inflow'].sum()
         
         # Calculate percentages
         free_share = (free_inflow / total_inflow * 100) if total_inflow > 0 else 0
@@ -1077,27 +1110,28 @@ def create_free_share_by_source_chart(df, dimension=None, date_range=None):
     if len(df) == 0:
         return None
     
-    # Filter for free inflow only
-    free_inflow_df = df[
-        (df['inflow_outflow'] == 'inflow') &
-        (~df['source'].isin(['rewards_store', 'rewards_rolling_offer_collect']))
-    ].copy()
+    # Define free inflow sources (all inflow sources EXCEPT paid ones)
+    # Based on SQL: total_free_inflow excludes rewards_store, rewards_rolling_offer_collect, rewards_disco
+    free_sources = [
+        'rewards_race', 'rewards_board_task', 'rewards_harvest_collect',
+        'rewards_missions_total', 'rewards_recipes', 'rewards_flowers',
+        'rewards_rewarded_video', 'rewards_timed_task', 'rewards_sell_board_item',
+        'rewards_mass_compensation', 'rewards_missions_task', 'rewards_album_set_completion',
+        'rewards_self_collectable', 'rewards_eoc', 'rewards_frenzy_non_jackpot'
+    ]
     
-    if len(free_inflow_df) == 0:
-        return None
-    
-    # Aggregate by date and source (and dimension if provided)
+    # Aggregate by date (and dimension if provided)
     if dimension:
-        group_cols = ['date', 'source', dimension]
+        group_cols = ['date', dimension]
     else:
-        group_cols = ['date', 'source']
+        group_cols = ['date']
     
     daily_data = []
-    for date_group, group_df in free_inflow_df.groupby(group_cols):
+    for date_group, group_df in df.groupby(group_cols):
         if dimension:
-            date_val, source_val, dim_val = date_group
+            date_val, dim_val = date_group
         else:
-            date_val, source_val = date_group
+            date_val = date_group
             dim_val = None
         
         # Ensure date_val is a proper date object
@@ -1106,17 +1140,20 @@ def create_free_share_by_source_chart(df, dimension=None, date_range=None):
         if isinstance(date_val, pd.Timestamp):
             date_val = date_val.date()
         
-        total_free_inflow = group_df['sum_value'].sum()
-        
-        row = {
-            'date': date_val,
-            'source': source_val,
-            'Free Inflow': total_free_inflow
-        }
-        if dimension:
-            row[dimension] = dim_val
-        
-        daily_data.append(row)
+        # Extract free inflow values from source columns
+        for source in free_sources:
+            col_name = f'{source}_inflow_sum_value'
+            if col_name in group_df.columns:
+                free_inflow = group_df[col_name].sum()
+                if free_inflow > 0:  # Only include sources with data
+                    row = {
+                        'date': date_val,
+                        'source': source,
+                        'Free Inflow': free_inflow
+                    }
+                    if dimension:
+                        row[dimension] = dim_val
+                    daily_data.append(row)
     
     chart_df = pd.DataFrame(daily_data)
     
@@ -1255,46 +1292,27 @@ def create_rtp_by_source_chart(df, dimension=None, date_range=None):
     if len(df) == 0:
         return None
     
-    # First, get outflow at player-day level (to avoid double counting)
-    # Outflow is stored per player per day, so we need to get unique player-day combinations
-    outflow_df = df[df['inflow_outflow'] == 'outflow'].copy()
+    # Define free inflow sources (all inflow sources EXCEPT paid ones)
+    free_sources = [
+        'rewards_race', 'rewards_board_task', 'rewards_harvest_collect',
+        'rewards_missions_total', 'rewards_recipes', 'rewards_flowers',
+        'rewards_rewarded_video', 'rewards_timed_task', 'rewards_sell_board_item',
+        'rewards_mass_compensation', 'rewards_missions_task', 'rewards_album_set_completion',
+        'rewards_self_collectable', 'rewards_eoc', 'rewards_frenzy_non_jackpot'
+    ]
     
-    if len(outflow_df) == 0:
-        return None
-    
-    # Get unique player-day outflow totals
-    # Note: total_outflow_per_player_per_day already exists in the data, but we'll calculate it to be safe
-    player_day_outflow = outflow_df.groupby(['date', 'distinct_id'])['sum_value'].sum().reset_index()
-    player_day_outflow['outflow'] = abs(player_day_outflow['sum_value'])  # Make positive
-    
-    # Ensure date is proper date type
-    if 'date' in player_day_outflow.columns:
-        player_day_outflow['date'] = pd.to_datetime(player_day_outflow['date']).dt.date
-    
-    # Aggregate outflow by date (sum across all players)
-    daily_outflow = player_day_outflow.groupby('date')['outflow'].sum().reset_index()
-    
-    # Get free inflow by source
-    free_inflow_df = df[
-        (df['inflow_outflow'] == 'inflow') &
-        (~df['source'].isin(['rewards_store', 'rewards_rolling_offer_collect']))
-    ].copy()
-    
-    if len(free_inflow_df) == 0:
-        return None
-    
-    # Aggregate free inflow by date and source (and dimension if provided)
+    # Aggregate by date (and dimension if provided)
     if dimension:
-        group_cols = ['date', 'source', dimension]
+        group_cols = ['date', dimension]
     else:
-        group_cols = ['date', 'source']
+        group_cols = ['date']
     
     daily_data = []
-    for date_group, group_df in free_inflow_df.groupby(group_cols):
+    for date_group, group_df in df.groupby(group_cols):
         if dimension:
-            date_val, source_val, dim_val = date_group
+            date_val, dim_val = date_group
         else:
-            date_val, source_val = date_group
+            date_val = date_group
             dim_val = None
         
         # Ensure date_val is a proper date object
@@ -1303,30 +1321,28 @@ def create_rtp_by_source_chart(df, dimension=None, date_range=None):
         if isinstance(date_val, pd.Timestamp):
             date_val = date_val.date()
         
-        free_inflow = group_df['sum_value'].sum()
+        # Get total outflow for this date/dimension combination
+        total_outflow = abs(group_df['total_outflow'].sum())  # Make positive
         
-        # Get outflow for this date (ensure date types match)
-        date_val_for_lookup = date_val
-        if isinstance(date_val_for_lookup, pd.Timestamp):
-            date_val_for_lookup = date_val_for_lookup.date()
-        
-        date_outflow = daily_outflow[daily_outflow['date'] == date_val_for_lookup]['outflow'].values
-        total_outflow = date_outflow[0] if len(date_outflow) > 0 else 0
-        
-        # Calculate RTP
-        rtp = (free_inflow / total_outflow * 100) if total_outflow > 0 else 0
-        
-        row = {
-            'date': date_val,
-            'source': source_val,
-            'Free Inflow': free_inflow,
-            'Total Outflow': total_outflow,
-            'RTP': rtp
-        }
-        if dimension:
-            row[dimension] = dim_val
-        
-        daily_data.append(row)
+        # Calculate RTP for each free source
+        for source in free_sources:
+            col_name = f'{source}_inflow_sum_value'
+            if col_name in group_df.columns:
+                free_inflow = group_df[col_name].sum()
+                
+                # Calculate RTP
+                rtp = (free_inflow / total_outflow * 100) if total_outflow > 0 else 0
+                
+                if free_inflow > 0 or total_outflow > 0:  # Include if there's data
+                    row = {
+                        'date': date_val,
+                        'source': source,
+                        'RTP': rtp
+                    }
+                    if dimension:
+                        row[dimension] = dim_val
+                    
+                    daily_data.append(row)
     
     chart_df = pd.DataFrame(daily_data)
     
@@ -1343,37 +1359,28 @@ def create_rtp_by_source_chart(df, dimension=None, date_range=None):
             date_max = date_max.date()
         
         all_dates = pd.date_range(start=date_min, end=date_max, freq='D').date.tolist()
-        sources = sorted(chart_df['source'].unique()) if len(chart_df) > 0 else []
-        
-        # Get daily outflow for all dates (fill missing with 0)
-        daily_outflow_dict = dict(zip(daily_outflow['date'], daily_outflow['outflow']))
+        sources = sorted(chart_df['source'].unique()) if len(chart_df) > 0 else free_sources
         
         if dimension:
             unique_dim_values = chart_df[dimension].dropna().unique() if len(chart_df) > 0 else []
             for date_val in all_dates:
-                total_outflow = daily_outflow_dict.get(date_val, 0)
                 for source_val in sources:
                     for dim_val in unique_dim_values:
                         if len(chart_df[(chart_df['date'] == date_val) & (chart_df['source'] == source_val) & (chart_df[dimension] == dim_val)]) == 0:
                             row = {
                                 'date': date_val,
                                 'source': source_val,
-                                'Free Inflow': 0,
-                                'Total Outflow': total_outflow,
                                 'RTP': 0,
                                 dimension: dim_val
                             }
                             daily_data.append(row)
         else:
             for date_val in all_dates:
-                total_outflow = daily_outflow_dict.get(date_val, 0)
                 for source_val in sources:
                     if len(chart_df[(chart_df['date'] == date_val) & (chart_df['source'] == source_val)]) == 0:
                         row = {
                             'date': date_val,
                             'source': source_val,
-                            'Free Inflow': 0,
-                            'Total Outflow': total_outflow,
                             'RTP': 0
                         }
                         daily_data.append(row)
@@ -1491,13 +1498,11 @@ def main():
         st.session_state.filter_temp = {
             'date_range': None,
             'first_chapter_of_day': [],
-            'inflow_outflow': [],
             'is_us_player': [],
             'last_balance_of_day': [],
             'last_version_of_day': [],
             'paid_ever_flag': [],
-            'paid_today_flag': [],
-            'source': []
+            'paid_today_flag': []
         }
     
     if 'filter_applied' not in st.session_state:
@@ -1542,9 +1547,7 @@ def main():
         # Fallback to loaded data range if query fails
         pass
     
-    # Add bucketed columns for filtering
-    df['first_chapter_bucket'] = df['first_chapter_of_day'].apply(bucket_first_chapter)
-    df['last_balance_bucket'] = df['last_balance_of_day'].apply(bucket_last_balance)
+    # Data is already bucketed in the new table - no need to create buckets
     
     # Date range filter (using slider with date conversion)
     if date_range[0] and date_range[1]:
@@ -1593,15 +1596,6 @@ def main():
     )
     st.session_state.filter_temp['first_chapter_of_day'] = selected_chapter
     
-    # Inflow/Outflow filter
-    inflow_outflow_options = sorted(df['inflow_outflow'].dropna().unique())
-    selected_inflow_outflow = st.sidebar.multiselect(
-        "Inflow/Outflow",
-        options=inflow_outflow_options,
-        default=st.session_state.filter_temp.get('inflow_outflow', [])
-    )
-    st.session_state.filter_temp['inflow_outflow'] = selected_inflow_outflow
-    
     # Is US Player filter
     us_player_options = sorted(df['is_us_player'].dropna().unique())
     selected_us_player = st.sidebar.multiselect(
@@ -1647,15 +1641,6 @@ def main():
     )
     st.session_state.filter_temp['paid_today_flag'] = selected_paid_today
     
-    # Source filter
-    source_options = sorted(df['source'].dropna().unique())
-    selected_source = st.sidebar.multiselect(
-        "Source",
-        options=source_options,
-        default=st.session_state.filter_temp.get('source', [])
-    )
-    st.session_state.filter_temp['source'] = selected_source
-    
     # Apply button
     if st.sidebar.button("✅ Apply Filters", type="primary"):
         st.session_state.filter_applied = st.session_state.filter_temp.copy()
@@ -1696,8 +1681,6 @@ def main():
     # If no date range filter is applied, show all loaded data (no filtering)
     if filters.get('first_chapter_of_day'):
         filtered_df = filtered_df[filtered_df['first_chapter_bucket'].isin(filters['first_chapter_of_day'])]
-    if filters.get('inflow_outflow'):
-        filtered_df = filtered_df[filtered_df['inflow_outflow'].isin(filters['inflow_outflow'])]
     if filters.get('is_us_player'):
         filtered_df = filtered_df[filtered_df['is_us_player'].isin(filters['is_us_player'])]
     if filters.get('last_balance_of_day'):
@@ -1708,8 +1691,6 @@ def main():
         filtered_df = filtered_df[filtered_df['paid_ever_flag'].isin(filters['paid_ever_flag'])]
     if filters.get('paid_today_flag'):
         filtered_df = filtered_df[filtered_df['paid_today_flag'].isin(filters['paid_today_flag'])]
-    if filters.get('source'):
-        filtered_df = filtered_df[filtered_df['source'].isin(filters['source'])]
     
     # ============================================================================
     # DIMENSION SELECTOR
