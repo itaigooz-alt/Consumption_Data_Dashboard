@@ -24,10 +24,6 @@ HEALTHCHECK CMD curl --fail http://localhost:8080/_stcore/health || exit 1
 
 # Run Streamlit
 # Cloud Run sets PORT environment variable, so we use it
-CMD streamlit run consumption_dashboard.py \
-    --server.port=${PORT:-8080} \
-    --server.address=0.0.0.0 \
-    --server.headless=true \
-    --server.enableCORS=false \
-    --server.enableXsrfProtection=false
+# Use shell form to allow environment variable expansion
+CMD ["sh", "-c", "streamlit run consumption_dashboard.py --server.port=${PORT:-8080} --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false"]
 
